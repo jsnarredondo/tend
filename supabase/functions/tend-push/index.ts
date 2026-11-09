@@ -82,6 +82,30 @@ Deno.serve(async (req) => {
     await patch("meds", m.id, { pushedFor: key });
   }
 
+  // alternating Tylenol/Motrin plan: push when the other medicine is due (built from the last logged dose)
+  const FEVER: Record<string, { name: string; minH: number; max24: number }> = {
+    ibuprofen: { name: "Motrin", minH: 6, max24: 4 }, acetaminophen: { name: "Tylenol", minH: 4, max24: 5 },
+  };
+  for (const k of kids) {
+    if (!k.alternate) continue;
+    const gap = [2, 3, 4].includes(+k.altGapH) ? +k.altGapH : 3;
+    const doses = entries.filter((e: any) => e.kid === k.id && e.type === "dose" && FEVER[e.med] && Date.parse(e.at) <= now)
+      .map((e: any) => ({ med: e.med, t: Date.parse(e.at) })).sort((a: any, b: any) => b.t - a.t);
+    if (!doses.length || now - doses[0].t > 12 * H) continue; // not in an active fever stretch
+    const nextMed = doses[0].med === "ibuprofen" ? "acetaminophen" : "ibuprofen", m = FEVER[nextMed];
+    const same = doses.filter((d: any) => d.med === nextMed);
+    let due = Math.max(doses[0].t + gap * H, same[0] ? same[0].t + m.minH * H : 0);
+    const win = same.filter((d: any) => Math.max(now, due) - d.t < 24 * H);
+    if (win.length >= m.max24) due = Math.max(due, win[win.length - 1].t + 24 * H);
+    if (!(due <= now && now - due < WINDOW)) continue;
+    const key = new Date(due).toISOString();
+    if (k.altPushedFor === key) continue;
+    // the app may already have made a reminder for this same dose
+    if (reminders.some((r: any) => r.kid === k.id && Math.abs(Date.parse(r.at) - due) < 15 * 60e3)) { await patch("kids", k.id, { altPushedFor: key }); continue; }
+    out.push({ title: "Tend", body: `💊 ${k.name}: ${m.name} is due (alternating plan)`, tag: "a-" + k.id });
+    await patch("kids", k.id, { altPushedFor: key });
+  }
+
   let sent = 0;
   for (const n of out) for (const sb of subs) {
     try { await webpush.sendNotification(sb.sub, JSON.stringify({ ...n, url: "./" }), { TTL: 3600, urgency: "high" }); sent++; }

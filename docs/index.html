@@ -642,10 +642,11 @@ function altPlan(){
   for(let i=0;i<4;i++){
     const m=FEVER_MEDS[nextMed];
     const same=sim.filter(x=>x.med===nextMed).sort((a,b)=>b.t-a.t);
-    let t=Math.max(now,lastAny?lastAny.t+altGap(P())*H:now,same[0]?same[0].t+m.minH*H:now);
-    const win=same.filter(x=>t-x.t<DAY);
-    if(win.length>=m.max24)t=Math.max(t,win[win.length-1].t+DAY);
-    out.push({med:nextMed,t});const d={med:nextMed,t};sim.unshift(d);sim.sort((a,b)=>b.t-a.t);lastAny=d;
+    let due=Math.max(lastAny?lastAny.t+altGap(P())*H:0,same[0]?same[0].t+m.minH*H:0);
+    const win=same.filter(x=>Math.max(now,due)-x.t<DAY);
+    if(win.length>=m.max24)due=Math.max(due,win[win.length-1].t+DAY);
+    const t=Math.max(now,due);
+    out.push({med:nextMed,t,due});const d={med:nextMed,t};sim.unshift(d);sim.sort((a,b)=>b.t-a.t);lastAny=d;
     nextMed=nextMed==="ibuprofen"?"acetaminophen":"ibuprofen";
   }
   return out;
@@ -672,8 +673,11 @@ function renderMeds(){
   const on=!!p.alternate;
   let alt=`<div class="toggle-row"><div class="grow"><div class="t1">Alternate Tylenol and Motrin</div><div class="t2">${p.altGapH?`Doctor's instructions: switch medicines every ${altGap(p)} hours.`:"A dose every 3 hours, switching medicines. Only do this if your doctor said to."} Each medicine still keeps its own minimum time and daily max.</div></div><label class="switch"><input type="checkbox" id="altT" ${on?"checked":""}><span></span></label></div>`;
   if(on)alt+=`<div class="toggle-row"><div class="grow"><div class="t1">Switch every</div></div><select id="altGap" class="alt-gap">${[2,3,4].map(h=>`<option value="${h}" ${altGap(p)===h?"selected":""}>${h} hours</option>`).join("")}</select></div>`;
-  if(on){alt+=altPlan().map((x,i)=>{const m=FEVER_MEDS[x.med];const d=new Date(x.t);const now=x.t<=Date.now()+6e4;
-    return `<div class="plan"><div class="sq" style="background:var(${m.color})">${pillSvg}</div><div class="time">${now?"Now":fmtT(d)}</div><div class="grow"><div class="t1">${m.name}</div><div class="t2">${doseLabel(x.med,p)}${dayLabel(d)!=="Today"?" · "+dayLabel(d):""}</div></div>${i===0?`<button class="badge b-ok" id="altGive">Log</button>`:""}</div>`;}).join("");}
+  if(on){const lastF=mine().find(e=>e.type==="dose"&&FEVER_MEDS[e.med]&&new Date(e.at)<=Date.now());
+    if(lastF){const ld=new Date(lastF.at);alt+=`<div class="smallnote">Built from the last dose logged: ${FEVER_MEDS[lastF.med].name} ${dayLabel(ld)==="Today"?"at":dayLabel(ld)} ${fmtT(ld)}. Log each dose and the times update.</div>`;}
+    else alt+=`<div class="smallnote">No Tylenol or Motrin logged yet. Log the first dose and the plan fills in from there.</div>`;
+    alt+=altPlan().map((x,i)=>{const m=FEVER_MEDS[x.med];const d=new Date(x.t);const now=x.t<=Date.now()+6e4;const late=i===0&&x.due&&x.due<Date.now()-5*6e4&&Date.now()-x.due<12*H;
+    return `<div class="plan"><div class="sq" style="background:var(${m.color})">${pillSvg}</div><div class="time">${now?"Now":fmtT(d)}</div><div class="grow"><div class="t1">${m.name}</div><div class="t2">${doseLabel(x.med,p)}${late?" · due since "+fmtT(new Date(x.due)):""}${dayLabel(d)!=="Today"?" · "+dayLabel(d):""}</div></div>${i===0?`<button class="badge b-ok" id="altGive">Log</button>`:""}</div>`;}).join("");}
   $("altplan").innerHTML=alt;
   $("altT").onchange=async e=>{await savePerson(cur,{alternate:e.target.checked});};
   if($("altGap"))$("altGap").onchange=async e=>{await savePerson(cur,{altGapH:+e.target.value});};
