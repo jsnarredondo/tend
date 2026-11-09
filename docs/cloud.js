@@ -4,6 +4,7 @@
 "use strict";
 const SB_URL="https://gibjbbqajmnlnzqvuusq.supabase.co";
 const SB_KEY="sb_publishable_0vxVostVAr24tMiZtwrGeA_jf-R3Zk1";
+const GOOGLE_ON=false; // turn on after the Google provider is set up in Supabase
 const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:"tend.auth"}});
 window.tendSB=sb;
 
@@ -21,6 +22,7 @@ function showLogin(msg){
       <button type="submit" id="lgGo">Sign in</button><div id="lgMsg" class="lg-msg"></div></form>
       <p class="lg-foot">Ask whoever set up Tend for an invite.</p></div>`;
     const icon=document.querySelector('link[rel="apple-touch-icon"]');if(icon)el.querySelector(".lg-logo").style.backgroundImage=`url("${icon.href}")`;
+    if(!GOOGLE_ON){$("lgGoogle").style.display="none";el.querySelector(".lg-or").style.display="none";}
     $("lgGoogle").onclick=async()=>{$("lgMsg").textContent="";
       const {error}=await sb.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname,queryParams:{prompt:"select_account"}}});
       if(error)$("lgMsg").textContent=/not enabled|provider/i.test(error.message)?"Google sign-in isn't turned on yet. Use your email and password.":"Couldn't open Google sign-in.";};

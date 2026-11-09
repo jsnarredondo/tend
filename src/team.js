@@ -19,7 +19,7 @@ function renderTeam(){
     const add=$("tmAdd");if(add)add.onclick=async()=>{add.disabled=true;
       try{const r=await user.invite(val("tmName"),val("tmEmail"),$("tmRole").value);
         const link=location.origin+location.pathname;
-        const msg=`I set you up on Tend so we can both track the kids' meds and symptoms.\n\n1. Open ${link}\n2. Tap Continue with Google and pick ${r.email}\n   (or sign in with that email and the password ${r.password})\n\nOn iPhone, tap Share then "Add to Home Screen" so it works like an app.`;
+        const msg=`I set you up on Tend so we can both track the kids' meds and symptoms.\n\n1. Open ${link}\n2. Sign in with ${r.email}\n3. Password: ${r.password}\n\nOn iPhone, tap Share then "Add to Home Screen" so it works like an app.`;
         $("tmOut").innerHTML=`<div class="hint" style="margin-top:10px;white-space:pre-wrap;user-select:text">${esc(msg)}</div><button class="pbtn" id="tmCopy" style="margin-top:8px;width:100%">Copy invite message</button>`;
         $("tmCopy").onclick=async()=>{try{await navigator.clipboard.writeText(msg);toast("Copied. Text it to them.");}catch(e){toast("Select the text and copy it");}};
       }catch(e){toast(e.message||"Couldn't invite");}add.disabled=false;};
