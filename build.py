@@ -19,7 +19,9 @@ sub('<title>Tend</title>', '<title>Tend</title>\n<meta name="robots" content="no
 html = re.sub(r'<link rel="icon" href="data:[^"]*">', '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">', html)
 html = re.sub(r'<link rel="apple-touch-icon" href="data:[^"]*">', '<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">', html)
 sub('</style>', (HERE / "src/cloud.css").read_text() + "\n</style>")
-sub('<body>', '<body>\n<script src="supabase.min.js"></script>\n<script src="cloud.js"></script>')
+import hashlib
+_v = hashlib.sha1((HERE / "src/cloud.js").read_bytes()).hexdigest()[:8]  # cache-bust on change
+sub('<body>', f'<body>\n<script src="supabase.min.js"></script>\n<script src="cloud.js?v={_v}"></script>')
 
 # keep the kids' names out of the public repo
 sub('Miles is 101.2 and I gave him 7.5 of Motrin', 'He\'s 101.2 and I gave him 7.5 of Motrin')
