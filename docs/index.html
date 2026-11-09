@@ -40,6 +40,7 @@ body{font:17px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Displ
 main{max-width:640px;margin:0 auto;padding:12px 16px 80px}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
 input,select{font:inherit;color:var(--ink)}
+.alt-gap{border:1px solid var(--line,#e5e5ea);border-radius:10px;padding:6px 10px;background:#fff;font-size:15px}
 .date{font-size:13px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.02em;margin-top:8px}
 h1{font-size:34px;font-weight:700;letter-spacing:-.02em;margin:0 0 14px;display:flex;align-items:center;gap:10px}
 h1 .leaf{width:30px;height:30px;border-radius:9px;background:linear-gradient(145deg,#5ad08a,#2fa86a);display:grid;place-items:center}
@@ -463,6 +464,11 @@ const FEVER_MEDS={
     bands:[[24,35,5],[36,47,7.5],[48,59,10],[60,71,12.5],[72,95,15]],adult:{mg:[325,500,650,1000],note:"325 to 1,000 mg every 4 to 6 hrs. No more than 3,000 mg a day unless a doctor says so.",maxMg:3000}}
 };
 const ALT_GAP_H=3;
+const altGap=p=>[2,3,4].includes(+(p&&p.altGapH))?+p.altGapH:ALT_GAP_H;
+// when the other fever medicine may be given next on the alternating plan: the plan gap, but never sooner than that medicine's own minimum
+function altNext(pid,med,atMs){const other=med==="ibuprofen"?"acetaminophen":"ibuprofen",om=FEVER_MEDS[other];
+  const last=entries.filter(e=>e.kid===pid&&e.type==="dose"&&e.med===other&&+new Date(e.at)<=atMs).sort((a,b)=>new Date(b.at)-new Date(a.at))[0];
+  return {other,t:Math.max(atMs+altGap(people[pid])*H,last?+new Date(last.at)+om.minH*H:0)};}
 const COLORS=["#5ac8fa","#af52de","#ff9f0a","#34c759","#ff2d55","#5856d6","#30b0c7","#a2845e"];
 const RELS=["Child","Parent","Partner","Me","Grandparent","Other"];
 const SYMPTOMS=[
@@ -636,7 +642,7 @@ function altPlan(){
   for(let i=0;i<4;i++){
     const m=FEVER_MEDS[nextMed];
     const same=sim.filter(x=>x.med===nextMed).sort((a,b)=>b.t-a.t);
-    let t=Math.max(now,lastAny?lastAny.t+ALT_GAP_H*H:now,same[0]?same[0].t+m.minH*H:now);
+    let t=Math.max(now,lastAny?lastAny.t+altGap(P())*H:now,same[0]?same[0].t+m.minH*H:now);
     const win=same.filter(x=>t-x.t<DAY);
     if(win.length>=m.max24)t=Math.max(t,win[win.length-1].t+DAY);
     out.push({med:nextMed,t});const d={med:nextMed,t};sim.unshift(d);sim.sort((a,b)=>b.t-a.t);lastAny=d;
@@ -664,11 +670,13 @@ function renderMeds(){
       <div class="right"><span class="badge ${s.b}">${s.t}</span><div class="minis">${Array.from({length:m.max24},(_,i)=>`<i class="pip ${i<s.in24.length?"on":""}"></i>`).join("")}</div></div></div>`;}).join("")
     +`<div class="smallnote">${isChild(p)?`Children's liquid. Motrin every 6 to 8 hrs (max 4 a day, with food). Tylenol every 4 to 6 hrs (max 5 a day).`:`Adult tablets. Motrin: ${FEVER_MEDS.ibuprofen.adult.note} Tylenol: ${FEVER_MEDS.acetaminophen.adult.note}`}</div>`;
   const on=!!p.alternate;
-  let alt=`<div class="toggle-row"><div class="grow"><div class="t1">Alternate Tylenol and Motrin</div><div class="t2">A dose every 3 hours, switching medicines. Only do this if your doctor said to.</div></div><label class="switch"><input type="checkbox" id="altT" ${on?"checked":""}><span></span></label></div>`;
+  let alt=`<div class="toggle-row"><div class="grow"><div class="t1">Alternate Tylenol and Motrin</div><div class="t2">${p.altGapH?`Doctor's instructions: switch medicines every ${altGap(p)} hours.`:"A dose every 3 hours, switching medicines. Only do this if your doctor said to."} Each medicine still keeps its own minimum time and daily max.</div></div><label class="switch"><input type="checkbox" id="altT" ${on?"checked":""}><span></span></label></div>`;
+  if(on)alt+=`<div class="toggle-row"><div class="grow"><div class="t1">Switch every</div></div><select id="altGap" class="alt-gap">${[2,3,4].map(h=>`<option value="${h}" ${altGap(p)===h?"selected":""}>${h} hours</option>`).join("")}</select></div>`;
   if(on){alt+=altPlan().map((x,i)=>{const m=FEVER_MEDS[x.med];const d=new Date(x.t);const now=x.t<=Date.now()+6e4;
     return `<div class="plan"><div class="sq" style="background:var(${m.color})">${pillSvg}</div><div class="time">${now?"Now":fmtT(d)}</div><div class="grow"><div class="t1">${m.name}</div><div class="t2">${doseLabel(x.med,p)}${dayLabel(d)!=="Today"?" · "+dayLabel(d):""}</div></div>${i===0?`<button class="badge b-ok" id="altGive">Log</button>`:""}</div>`;}).join("");}
   $("altplan").innerHTML=alt;
   $("altT").onchange=async e=>{await savePerson(cur,{alternate:e.target.checked});};
+  if($("altGap"))$("altGap").onchange=async e=>{await savePerson(cur,{altGapH:+e.target.value});};
   const ag=$("altGive");if(ag)ag.onclick=()=>openSheet("dose",{med:altPlan()[0].med});
   const om=meds.filter(m=>m.kid===cur);
   $("othermeds").innerHTML=om.length?om.map(m=>{const s=otherMedStatus(m);return `<div class="row"><div class="sq" style="background:var(--indigo)">${pillSvg}</div>
@@ -964,7 +972,7 @@ function askContext(){
   return `Person: ${p.name}, ${p.relation||""}, ${ageText(p.dob)||"age unknown"}${p.dob?" (born "+p.dob+")":""}, weight ${p.weightLb?p.weightLb+" lb":"unknown"}.
 Allergies: ${p.allergies||"none listed"}. Conditions: ${p.conditions||"none listed"}.
 Other medicines: ${am.map(m=>`${m.name} ${m.dose||""} ${m.everyH?"every "+m.everyH+"h":""}${m.times&&m.times.length?" at "+m.times.join(", "):""}${m.until?" until "+m.until:""}`).join("; ")||"none"}.
-Alternating Tylenol/Motrin plan: ${p.alternate?"on":"off"}.
+Alternating Tylenol/Motrin plan: ${p.alternate?`on, switching every ${altGap(p)} hours${p.altGapH?" (doctor's instructions)":""}`:"off"}.
 Fever medicine reference used by the app: children's ibuprofen 100mg/5mL every 6-8h max 4/24h; children's acetaminophen 160mg/5mL every 4-6h max 5/24h; weight bands 24-35/36-47/48-59/60-71/72-95 lb -> 5/7.5/10/12.5/15 mL.
 Records: ${recs.map(r=>`${r.date||""} ${REC_KINDS[r.kind]||r.kind}: ${r.title}${r.notes?" ("+r.notes+")":""}`).join("; ")||"none"}.
 Current time: ${new Date().toLocaleString()}.
@@ -1035,8 +1043,8 @@ Caregiver says: ${q}`;
         else if(x.type==="fluid"||x.type==="note"){e.text=String(x.text||"").slice(0,300);if(x.type==="note"&&!e.text)continue;}
         else continue;
         const ref=await db.collection("entries").add(e);created.push({col:"entries",id:ref.id});labels.push(entryLabel(e,pid));
-        if(x.type==="dose"&&FEVER_MEDS[x.med]){const pp=people[pid]||{};const next=new Date(+at+(pp.alternate?ALT_GAP_H:FEVER_MEDS[x.med].minH)*H);
-          if(next>Date.now()){const rr=await db.collection("reminders").add({kid:pid,title:`💊 ${FEVER_MEDS[x.med].name} allowed again · ${pp.name}`,at:next.toISOString(),done:false,createdAt:new Date().toISOString(),by:me||null});created.push({col:"reminders",id:rr.id});labels.push(`Reminder: next ${FEVER_MEDS[x.med].name} ${fmtRel(next)}`);}}
+        if(x.type==="dose"&&FEVER_MEDS[x.med]){const pp=people[pid]||{};const an=pp.alternate?altNext(pid,x.med,+at):null;const next=new Date(an?an.t:+at+FEVER_MEDS[x.med].minH*H);
+          if(next>Date.now()){const rr=await db.collection("reminders").add({kid:pid,title:an?`💊 ${pp.name}: ${FEVER_MEDS[an.other].name} is next`:`💊 ${FEVER_MEDS[x.med].name} allowed again · ${pp.name}`,at:next.toISOString(),done:false,createdAt:new Date().toISOString(),by:me||null});created.push({col:"reminders",id:rr.id});labels.push(`Reminder: next ${FEVER_MEDS[an?an.other:x.med].name} ${fmtRel(next)}`);}}
       }
       for(const x of (Array.isArray(r&&r.updates)?r.updates:[])){const pid=people[x.person]?x.person:cur;if(!pid||!people[pid])continue;const pp=people[pid],f={},bits=[];
         if(+x.weightLb>0&&+x.weightLb<1000){f.weightLb=Math.round(+x.weightLb*10)/10;bits.push(`weight ${f.weightLb} lb`);}
@@ -1249,11 +1257,11 @@ $("sDone").onclick=async()=>{
       await db.collection("entries").add(Object.assign(base("temp"),{tempF:Math.round(t*10)/10}));closeSheet();toast(`${t.toFixed(1)}°F saved`);}
     else if(mode==="dose"){const raw=val("sAmt"),atD=at();let e=base("dose"),label,minH;
       if(ss.med){const m=FEVER_MEDS[ss.med],n=parseFloat(raw);if(!(n>0))return fail("Enter the amount");
-        e.med=ss.med;if(isChild(p)){e.mL=n;e.mg=Math.round(n*m.mgPerMl);}else e.mg=n;label=m.name;minH=p.alternate?ALT_GAP_H:m.minH;}
+        e.med=ss.med;if(isChild(p)){e.mL=n;e.mg=Math.round(n*m.mgPerMl);}else e.mg=n;label=m.name;minH=p.alternate?altGap(p):m.minH;}
       else{const om=meds.find(x=>x.id===ss.medId);if(!om)return fail("Pick a medicine");e.med="other";e.medId=om.id;e.medName=om.name;e.amount=raw;label=om.name;minH=om.everyH;
         if(om.supply!=null&&om.supply!=="")db.collection("meds").doc(om.id).update({supply:Math.max(0,+om.supply-1)}).catch(()=>{});}
       await db.collection("entries").add(e);closeSheet();let msg=`${label} saved`;
-      if($("sRem")&&$("sRem").checked&&minH){const next=new Date(atD.getTime()+minH*H);
+      if($("sRem")&&$("sRem").checked&&minH){const next=new Date(p.alternate&&ss.med?altNext(cur,ss.med,atD.getTime()).t:atD.getTime()+minH*H);
         if(next>Date.now()){const nm=p.alternate&&ss.med?FEVER_MEDS[ss.med==="ibuprofen"?"acetaminophen":"ibuprofen"].name:label;
           const r=await addReminders([{start:next,title:`💊 ${p.name}: ${nm} ${p.alternate&&ss.med?"is next":"due"}`,desc:"From Tend. Only give if needed: no need to wake someone who's sleeping comfortably."}],!!mcp);
           msg+=` · reminder at ${fmtT(next)}`;}}
