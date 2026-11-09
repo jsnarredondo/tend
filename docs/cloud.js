@@ -4,7 +4,7 @@
 "use strict";
 const SB_URL="https://gibjbbqajmnlnzqvuusq.supabase.co";
 const SB_KEY="sb_publishable_0vxVostVAr24tMiZtwrGeA_jf-R3Zk1";
-const GOOGLE_ON=false; // turn on after the Google provider is set up in Supabase
+const GOOGLE_ON=true;
 const sb=supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,storageKey:"tend.auth"}});
 window.tendSB=sb;
 
