@@ -1,0 +1,11 @@
+#login{position:fixed;inset:0;z-index:999;display:none;align-items:center;justify-content:center;padding:24px;background:linear-gradient(180deg,#e6efff,#fdf0f7)}
+@media (prefers-color-scheme:dark){#login{background:linear-gradient(180deg,#0b1020,#1c0f16)}#login .lg-card{background:#1c1c1e;color:#fff}#login input{background:#2c2c2e;color:#fff;border-color:#3a3a3c}}
+#login .lg-card{width:100%;max-width:360px;background:#fff;border-radius:24px;padding:28px 22px;box-shadow:0 20px 50px rgba(58,30,36,.15);text-align:center;color:#3A1E24}
+#login .lg-logo{width:76px;height:76px;margin:0 auto 10px;border-radius:18px;background-size:cover;box-shadow:0 10px 24px rgba(240,86,106,.35)}
+#login h1{margin:0;font-size:32px;font-weight:800;text-align:center}
+#login .lg-sub{margin:4px 0 18px;opacity:.65}
+#login input{display:block;width:100%;box-sizing:border-box;font-size:16px;padding:14px;margin:0 0 10px;border:1px solid #e3dfe6;border-radius:14px;background:#faf9fb}
+#login button{width:100%;font-size:17px;font-weight:700;padding:14px;border:0;border-radius:14px;background:#F0566A;color:#fff;min-height:48px}
+#login button:disabled{opacity:.6}
+#login .lg-msg{min-height:20px;margin-top:10px;font-size:14px;color:#c0394b}
+#login .lg-foot{margin:14px 0 0;font-size:13px;opacity:.55}
