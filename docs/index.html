@@ -1001,15 +1001,20 @@ function emergencyText(){const p=P(),am=meds.filter(m=>m.kid===cur&&!(m.until&&n
 /* ---- Ask Tend ---- */
 function askContext(){
   const p=P(),list=mine().filter(e=>Date.now()-new Date(e.at)<4*DAY).slice(0,120).reverse();
-  const lines=list.map(e=>{const t=new Date(e.at).toLocaleString([],{weekday:"short",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"});
+  const lines=list.map(e=>{const t=new Date(e.at).toLocaleString([],{weekday:"short",month:"numeric",day:"numeric",hour:"numeric",minute:"2-digit"})+`  [entry ${e.id}]`;
     if(e.type==="temp")return `${t}  temp ${e.tempF}F`;if(e.type==="dose")return `${t}  dose ${medInfo(e).name} ${doseText(e).replace(/<[^>]+>/g,"")}`;
     if(e.type==="vital"){return `${t}  ${e.vital==="bp"?"BP "+e.sys+"/"+e.dia:(VITALS[e.vital]||{label:e.vital}).label+" "+e.value}`;}
     if(e.type==="symptom")return `${t}  symptoms: ${(e.symptoms||[]).map(s=>SYM[s]?SYM[s].label:s).join(", ")} ${e.text||""}`;return `${t}  ${e.type}: ${e.text||""}`;});
+  const fmtL=d=>new Date(d).toLocaleString([],{weekday:"short",hour:"numeric",minute:"2-digit"});
+  const rems=reminders.filter(r=>!r.done&&new Date(r.at)>Date.now()-6*H).sort((a,b)=>new Date(a.at)-new Date(b.at)).map(r=>`- [reminder ${r.id}] ${(people[r.kid]||{}).name||""}: ${r.title} at ${fmtL(r.at)}`);
+  const plan=p.alternate?altPlan().map(x=>`${FEVER_MEDS[x.med].name} ${doseLabel(x.med,p)} at ${fmtL(x.t)}`).join(", "):"";
   const am=meds.filter(m=>m.kid===cur);const recs=records.filter(r=>r.kid===cur).slice(0,15);
   return `Person: ${p.name}, ${p.relation||""}, ${ageText(p.dob)||"age unknown"}${p.dob?" (born "+p.dob+")":""}, weight ${p.weightLb?p.weightLb+" lb":"unknown"}.
 Allergies: ${p.allergies||"none listed"}. Conditions: ${p.conditions||"none listed"}.
-Other medicines: ${am.map(m=>`${m.name} ${m.dose||""} ${m.everyH?"every "+m.everyH+"h":""}${m.times&&m.times.length?" at "+m.times.join(", "):""}${m.until?" until "+m.until:""}`).join("; ")||"none"}.
-Alternating Tylenol/Motrin plan: ${p.alternate?`on, switching every ${altGap(p)} hours${p.altGapH?" (doctor's instructions)":""}`:"off"}.
+Other medicines: ${am.map(m=>`[med ${m.id}] ${m.name} ${m.dose||""} ${m.everyH?"every "+m.everyH+"h":""}${m.times&&m.times.length?" at "+m.times.join(", "):""}${m.until?" until "+m.until:""}`).join("; ")||"none"}.
+Alternating Tylenol/Motrin plan: ${p.alternate?`on, switching every ${altGap(p)} hours${p.altGapH?" (doctor's instructions)":""}${p.altNext?" (next dose time set by hand)":""}. Upcoming per the app: ${plan}`:"off"}.
+Pending reminders (all people):
+${rems.join("\n")||"(none)"}
 Fever medicine reference used by the app: children's ibuprofen 100mg/5mL every 6-8h max 4/24h; children's acetaminophen 160mg/5mL every 4-6h max 5/24h; weight bands 24-35/36-47/48-59/60-71/72-95 lb -> 5/7.5/10/12.5/15 mL.
 Records: ${recs.map(r=>`${r.date||""} ${REC_KINDS[r.kind]||r.kind}: ${r.title}${r.notes?" ("+r.notes+")":""}`).join("; ")||"none"}.
 Current time: ${new Date().toLocaleString()}.
@@ -1019,6 +1024,7 @@ ${lines.join("\n")||"(nothing logged)"}`;
 const TELL_RULES=`You are Tend, a calm, caring helper inside a family caregiving app. The caregiver talks to you naturally (often by voice dictation, so expect run-on sentences and typos). Your job:
 1) LOG everything they report as structured entries: temperatures, medicine doses, fluids, symptoms, vitals, and anything else as a short note.
 2) Set reminders if they ask ("remind me in 2 hours to...").
+2b) You can also CHANGE anything in the app when they ask: delete or fix log entries and reminders (use the [entry id] / [reminder id] shown), mark reminders done, turn the alternating Tylenol/Motrin plan on or off, change its time between doses (gapH, 1 to 8 hours), set the time of its next dose (nextAt) or go back to automatic times (resetNext), and add, change, or stop other medicines (like Tamiflu: name, dose, everyH or times, until date). Do it yourself; never tell them to tap through the app. Everything you do can be undone with the Undo button. Only delete what they asked about (for example "the duplicate 4:20 Tylenol" = those dose entries), and say exactly what you removed. The app already reminds them about the alternating plan, so delete reminders that duplicate or conflict with it when they ask you to clean up.
 3) Reply briefly and warmly: confirm what you logged in one short sentence, and answer any question using the logged data.
 Logging rules:
 - Who: use the person id from PEOPLE. If they don't name anyone, use the CURRENT person. Names may be misspelled.
@@ -1031,7 +1037,8 @@ Logging rules:
 - Use context like a smart person would: "he" or "him" means whoever was just discussed; "the baby", "my son", or "the little one" maps to the matching person; "this morning", "an hour ago", or "around 7" are relative to the current time; "same as last time" means the amount from their last dose of that medicine.
 - Don't invent data. If something important is truly unclear (which person, when several fit; a dose amount you can't infer), log what IS clear, leave that item out, and ask ONE short question in the reply. If nothing should be logged (just a question), return entries: [].
 Reply rules: 1-4 short sentences, plain words, no headings. If anything sounds like an emergency (trouble breathing, blue lips, seizure, can't wake, a stiff neck with fever, a rash that doesn't fade, severe dehydration, a baby under 3 months with fever, chest pain, a temp of 104°F or higher), say to call 911, the ER, or the doctor FIRST. Mention when the next dose is allowed when that helps. Don't diagnose. Never suggest aspirin for kids.
-Return ONLY JSON: {"entries":[{"person":"id","type":"temp|dose|fluid|symptom|vital|note","at":"YYYY-MM-DDTHH:MM","tempF":null,"med":"","medName":"","mL":null,"mg":null,"amount":"","symptoms":[],"cleared":[],"vital":"","sys":null,"dia":null,"value":null,"text":""}],"reminders":[{"person":"id","title":"short text with an emoji","at":"YYYY-MM-DDTHH:MM"}],"updates":[{"person":"id","weightLb":null,"heightIn":null,"allergies":"","conditions":"","bloodType":"","doctorName":"","doctorPhone":"","pharmacy":""}],"reply":"..."}`;
+Return ONLY JSON: {"entries":[{"person":"id","type":"temp|dose|fluid|symptom|vital|note","at":"YYYY-MM-DDTHH:MM","tempF":null,"med":"","medName":"","mL":null,"mg":null,"amount":"","symptoms":[],"cleared":[],"vital":"","sys":null,"dia":null,"value":null,"text":""}],"reminders":[{"person":"id","title":"short text with an emoji","at":"YYYY-MM-DDTHH:MM"}],"updates":[{"person":"id","weightLb":null,"heightIn":null,"allergies":"","conditions":"","bloodType":"","doctorName":"","doctorPhone":"","pharmacy":""}],"delete":[{"col":"entries|reminders|meds","id":"..."}],"edit":[{"col":"entries|reminders","id":"...","at":"YYYY-MM-DDTHH:MM","mL":null,"title":"","done":null}],"plan":[{"person":"id","alternate":null,"gapH":null,"nextAt":"","resetNext":false}],"meds":[{"person":"id","id":"existing med id or empty for new","name":"","dose":"","everyH":null,"times":[],"until":"YYYY-MM-DD","asNeeded":false,"stop":false}],"reply":"..."}
+Leave out any key you don't need.`;
 function peopleContext(){
   return orderedPeople().map(p=>`- id "${p.id}": ${p.name}, ${p.relation||""}, ${ageText(p.dob)||"age unknown"}, ${p.weightLb?p.weightLb+" lb":"weight unknown"}${p.allergies?", allergies: "+p.allergies:""}; other medicines: ${meds.filter(m=>m.kid===p.id).map(m=>m.name+" "+(m.dose||"")).join(", ")||"none"}`).join("\n");
 }
@@ -1081,7 +1088,8 @@ Caregiver says: ${q}`;
         else continue;
         const ref=await db.collection("entries").add(e);created.push({col:"entries",id:ref.id});labels.push(entryLabel(e,pid));
         if(x.type==="dose"&&FEVER_MEDS[x.med]){const pp=people[pid]||{};const an=pp.alternate?altNext(pid,x.med,+at):null;const next=new Date(an?an.t:+at+FEVER_MEDS[x.med].minH*H);
-          if(next>Date.now()){const rr=await db.collection("reminders").add({kid:pid,title:an?`💊 ${pp.name}: ${FEVER_MEDS[an.other].name} is next`:`💊 ${FEVER_MEDS[x.med].name} allowed again · ${pp.name}`,at:next.toISOString(),done:false,createdAt:new Date().toISOString(),by:me||null});created.push({col:"reminders",id:rr.id});labels.push(`Reminder: next ${FEVER_MEDS[an?an.other:x.med].name} ${fmtRel(next)}`);}}
+          if(an)labels.push(`Next: ${FEVER_MEDS[an.other].name} ${fmtRel(next)} (alternating plan)`);
+          else if(next>Date.now()){const rr=await db.collection("reminders").add({kid:pid,title:an?`💊 ${pp.name}: ${FEVER_MEDS[an.other].name} is next`:`💊 ${FEVER_MEDS[x.med].name} allowed again · ${pp.name}`,at:next.toISOString(),done:false,createdAt:new Date().toISOString(),by:me||null});created.push({col:"reminders",id:rr.id});labels.push(`Reminder: next ${FEVER_MEDS[an?an.other:x.med].name} ${fmtRel(next)}`);}}
       }
       for(const x of (Array.isArray(r&&r.updates)?r.updates:[])){const pid=people[x.person]?x.person:cur;if(!pid||!people[pid])continue;const pp=people[pid],f={},bits=[];
         if(+x.weightLb>0&&+x.weightLb<1000){f.weightLb=Math.round(+x.weightLb*10)/10;bits.push(`weight ${f.weightLb} lb`);}
@@ -1094,14 +1102,42 @@ Caregiver says: ${q}`;
       for(const x of (Array.isArray(r&&r.reminders)?r.reminders:[])){const pid=people[x.person]?x.person:cur;const at=parseLocal(x.at);if(!x.title||at<Date.now()-6e4)continue;
         const rr=await db.collection("reminders").add({kid:pid,title:String(x.title).slice(0,120),at:at.toISOString(),done:false,createdAt:new Date().toISOString(),by:me||null});created.push({col:"reminders",id:rr.id});labels.push(`Reminder: ${x.title} ${fmtRel(at)}`);}
     }
+    if(canWrite&&db){
+      const coll={entries,reminders,meds},strip=o=>{const c=Object.assign({},o);delete c.id;return c;};
+      for(const x of (Array.isArray(r&&r.delete)?r.delete:[])){const arr=coll[x&&x.col];const d=arr&&arr.find(y=>y.id===x.id);if(!d)continue;
+        try{await db.collection(x.col).doc(d.id).delete();created.push({col:x.col,id:d.id,restore:strip(d)});
+          labels.push(`Deleted: ${x.col==="entries"?entryLabel(d,d.kid):x.col==="meds"?d.name:d.title+" "+fmtT(new Date(d.at))}`);}catch(e){}}
+      for(const x of (Array.isArray(r&&r.edit)?r.edit:[])){const arr=coll[x&&x.col];const d=arr&&arr.find(y=>y.id===x.id);if(!d||x.col==="meds")continue;const f={};
+        if(x.at){const at=parseLocal(x.at);if(!isNaN(at))f.at=at.toISOString();}
+        if(x.col==="entries"&&d.type==="dose"&&+x.mL>0&&FEVER_MEDS[d.med]){f.mL=+x.mL;f.mg=Math.round(+x.mL*FEVER_MEDS[d.med].mgPerMl);}
+        if(x.col==="reminders"&&x.title)f.title=String(x.title).slice(0,120);if(x.col==="reminders"&&typeof x.done==="boolean")f.done=x.done;
+        if(!Object.keys(f).length)continue;
+        try{await db.collection(x.col).doc(d.id).update(f);created.push({col:x.col,id:d.id,restore:strip(d)});
+          labels.push(`Changed: ${x.col==="entries"?entryLabel(Object.assign({},d,f),d.kid):(f.title||d.title)+(f.done?" (done)":" "+fmtT(new Date(f.at||d.at)))}`);}catch(e){}}
+      for(const x of (Array.isArray(r&&r.plan)?r.plan:[])){const pid=people[x&&x.person]?x.person:cur;const pp=people[pid];if(!pp)continue;const f={},bits=[];
+        if(typeof x.alternate==="boolean"&&x.alternate!==!!pp.alternate){f.alternate=x.alternate;bits.push(x.alternate?"alternating plan on":"alternating plan off");}
+        if(+x.gapH>=1&&+x.gapH<=8&&+x.gapH!==altGap(pp)){f.altGapH=Math.round(+x.gapH*2)/2;bits.push(`doses ${gapText(f.altGapH)} apart`);}
+        if(x.resetNext&&pp.altNext){f.altNext=null;bits.push("automatic times");}
+        else if(x.nextAt){const at=parseLocal(x.nextAt);const lastF=entries.filter(e=>e.kid===pid&&e.type==="dose"&&FEVER_MEDS[e.med]&&new Date(e.at)<=Date.now()).sort((a,b)=>new Date(b.at)-new Date(a.at))[0];
+          f.altNext={after:lastF?new Date(lastF.at).toISOString():"",at:at.toISOString()};bits.push(`next dose at ${fmtT(at)}`);}
+        if(!bits.length)continue;const prev={};Object.keys(f).forEach(k=>prev[k]=pp[k]===undefined?null:pp[k]);
+        await savePerson(pid,f);created.push({col:"kids",id:pid,prev});labels.push(`${pp.name}: ${bits.join(", ")}`);}
+      for(const x of (Array.isArray(r&&r.meds)?r.meds:[])){const pid=people[x&&x.person]?x.person:cur;const ex=x.id&&meds.find(m=>m.id===x.id);
+        if(ex&&x.stop){const d=new Date(Date.now()-DAY),ds=`${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;await db.collection("meds").doc(ex.id).update({until:ds});created.push({col:"meds",id:ex.id,restore:strip(ex)});labels.push(`Stopped: ${ex.name}`);continue;}
+        const body={};if(x.name)body.name=String(x.name).slice(0,80);if(x.dose)body.dose=String(x.dose).slice(0,60);if(+x.everyH>0)body.everyH=+x.everyH;
+        if(Array.isArray(x.times)&&x.times.length)body.times=x.times.map(String).slice(0,8);if(/^\d{4}-\d{2}-\d{2}$/.test(x.until||""))body.until=x.until;if(typeof x.asNeeded==="boolean")body.asNeeded=x.asNeeded;
+        if(ex){if(!Object.keys(body).length)continue;await db.collection("meds").doc(ex.id).update(body);created.push({col:"meds",id:ex.id,restore:strip(ex)});labels.push(`Changed: ${body.name||ex.name}`);}
+        else{if(!body.name)continue;Object.assign(body,{kid:pid,createdAt:new Date().toISOString(),by:me||null});const ref=await db.collection("meds").add(body);created.push({col:"meds",id:ref.id});
+          labels.push(`Added medicine: ${body.name}${body.dose?" "+body.dose:""}${body.everyH?" every "+body.everyH+" hrs":""}${body.times?" at "+body.times.join(", "):""}`);}}
+    }
     const reply=[String((r&&r.reply)||"").trim()].concat(warns).filter(Boolean).join("\n\n")||(labels.length?"Logged.":"I didn't catch anything to log.");
     askTurns.push({role:"assistant",content:reply,labels,created});renderAsk();
   }catch(e){if(e.code==="cancelled")return;askTurns.pop();renderAsk();$("askIn").value=q;
     toast(e.code==="not_granted"||e.code==="sampling_disabled"?"Tend needs permission to use Claude":e.code==="rate_limited"?"Too many messages. Try again in a minute.":(e.message&&!["error","parse"].includes(e.code)?e.message:"Couldn't understand that. Try again."));
     if(e.code==="sampling_disabled")$("askCard").style.display="none";}
 }
-async function undoTurn(i){const t=askTurns[i];if(!t||!t.created)return;for(const c of t.created){try{if(c.prev)await savePerson(c.id,c.prev);else await db.collection(c.col).doc(c.id).delete();}catch(e){}}
-  t.labels=[];t.created=[];t.content="Undone. Nothing from that message is logged.";renderAsk();toast("Undone");}
+async function undoTurn(i){const t=askTurns[i];if(!t||!t.created)return;for(const c of t.created.slice().reverse()){try{if(c.prev)await savePerson(c.id,c.prev);else if(c.restore)await db.collection(c.col).doc(c.id).set(c.restore);else await db.collection(c.col).doc(c.id).delete();}catch(e){}}
+  t.labels=[];t.created=[];t.content="Undone. Everything from that message was put back.";renderAsk();toast("Undone");}
 function renderAsk(pending){
   const t=askTurns.map((x,i)=>`<div class="bubble ${x.role}">${esc(x.content).replace(/\n/g,"<br>")}${x.labels&&x.labels.length?`<div class="logged">${x.labels.map(l=>`<div>✓ ${esc(l)}</div>`).join("")}<span class="link undo" data-u="${i}">Undo</span></div>`:""}</div>`).join("")+(pending!==undefined?`<div class="bubble assistant"><span class="typing">${esc(pending)}</span></div>`:"");
   $("askThread").innerHTML=t;$("askThread").style.display=t?"":"none";$("askChips").style.display=askTurns.length?"none":"";$("askClear").style.display=askTurns.length?"":"none";
