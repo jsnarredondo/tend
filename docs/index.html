@@ -1213,7 +1213,7 @@ function openSheet(mode,opt){
     <div class="form">${timeRow()}</div>`;}
   if(mode==="emergency"){title="Medical ID";done="Done";body=emergencyHtml();}
   if(mode==="altplan"){title="Alternating plan";done="Save";const a=altPlan();const n=a[0];
-    body=`<div class="form" style="margin-top:12px"><div class="f-row"><label>Time between doses</label><select id="apGap">${GAP_OPTS.concat(GAP_OPTS.includes(altGap(p))?[]:[altGap(p)]).map(h=>`<option value="${h}" ${altGap(p)===h?"selected":""}>${gapText(h)}</option>`).join("")}</select></div>
+    body=`<div class="form" style="margin-top:12px"><div class="f-row"><label>Time between doses</label><select id="apGap" style="direction:ltr;text-align:right">${GAP_OPTS.concat(GAP_OPTS.includes(altGap(p))?[]:[altGap(p)]).map(h=>`<option value="${h}" ${altGap(p)===h?"selected":""}>${gapText(h)}</option>`).join("")}</select></div>
       <div class="f-row"><label>Next: ${n?FEVER_MEDS[n.med].name:"dose"}</label><input type="datetime-local" id="apAt" value="${localInput(new Date(n?n.t:Date.now()))}"></div></div>
       <div class="smallnote">Change the gap, or the time of the next dose. Every dose after it follows the gap. Each medicine still waits its own minimum time (Motrin 6 hrs, Tylenol 4 hrs) and daily max. To fix a dose that was already given, tap its time in the History list on the Today tab.</div>
       ${p.altNext?`<button class="link" id="apReset" style="margin-top:10px">Go back to the automatic times</button>`:""}`;}
