@@ -40,6 +40,8 @@ body{font:17px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Displ
 main{max-width:640px;margin:0 auto;padding:12px 16px 80px}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
 input,select{font:inherit;color:var(--ink)}
+.etime{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+.etime input{font:inherit;font-size:14px;border:1px solid var(--sep);border-radius:8px;padding:2px 6px}
 .alt-gap{border:1px solid var(--line,#e5e5ea);border-radius:10px;padding:6px 10px;background:#fff;font-size:15px}
 .date{font-size:13px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:.02em;margin-top:8px}
 h1{font-size:34px;font-weight:700;letter-spacing:-.02em;margin:0 0 14px;display:flex;align-items:center;gap:10px}
@@ -471,7 +473,9 @@ const FEVER_MEDS={
     bands:[[24,35,5],[36,47,7.5],[48,59,10],[60,71,12.5],[72,95,15]],adult:{mg:[325,500,650,1000],note:"325 to 1,000 mg every 4 to 6 hrs. No more than 3,000 mg a day unless a doctor says so.",maxMg:3000}}
 };
 const ALT_GAP_H=3;
-const altGap=p=>[2,3,4].includes(+(p&&p.altGapH))?+p.altGapH:ALT_GAP_H;
+const altGap=p=>{const g=+(p&&p.altGapH);return g>=1&&g<=12?g:ALT_GAP_H;};
+const GAP_OPTS=[1,1.5,2,2.5,3,3.5,4,4.5,5,6,7,8];
+const gapText=h=>h===1?"1 hour":(h%1?Math.floor(h)+"½":h)+" hours";
 // when the other fever medicine may be given next on the alternating plan: the plan gap, but never sooner than that medicine's own minimum
 function altNext(pid,med,atMs){const other=med==="ibuprofen"?"acetaminophen":"ibuprofen",om=FEVER_MEDS[other];
   const last=entries.filter(e=>e.kid===pid&&e.type==="dose"&&e.med===other&&+new Date(e.at)<=atMs).sort((a,b)=>new Date(b.at)-new Date(a.at))[0];
@@ -629,11 +633,12 @@ function nextMeds(){const p=P(),now=Date.now(),out=[];
   return out.sort((a,b)=>a.t-b.t).slice(0,2);}
 function renderHeroNext(){const box=$("heroNext");if(!box)return;if(!cur){box.innerHTML="";return;}
   const list=nextMeds();if(!list.length){box.innerHTML="";return;}const now=Date.now();
-  box.innerHTML=`<div class="hsym-h"><span>Next medicine</span></div>`+list.map((x,i)=>{const due=x.t<=now+6e4;const d=new Date(x.t);
+  box.innerHTML=`<div class="hsym-h"><span>Next medicine</span>${P().alternate?`<a class="link" id="hnextEdit">Change times</a>`:""}</div>`+list.map((x,i)=>{const due=x.t<=now+6e4;const d=new Date(x.t);
     const when=due?(x.allowed?"OK now":"Due now"):(x.t-now<60*6e4?`in ${Math.max(1,Math.round((x.t-now)/6e4))} min`:fmtT(d)+(dayLabel(d)!=="Today"?" "+dayLabel(d):""));
     const late=due&&x.due&&x.due<now-5*6e4?` · since ${fmtT(new Date(x.due))}`:"";
     return `<button class="hnext" data-i="${i}"><div class="sq" style="background:var(${x.color})">${pillSvg}</div><div class="grow"><div class="t1">${esc(x.name)} <span class="t2">${esc(x.dose)}</span></div><div class="t2">${esc(x.sub)}${late}</div></div><div class="when ${due&&!x.allowed?"due":""}">${when}</div></button>`;}).join("");
-  box.querySelectorAll("[data-i]").forEach(b=>b.onclick=()=>openSheet("dose",list[+b.dataset.i].open));}
+  box.querySelectorAll("[data-i]").forEach(b=>b.onclick=()=>openSheet("dose",list[+b.dataset.i].open));
+  if($("hnextEdit"))$("hnextEdit").onclick=()=>openSheet("altplan",{});}
 function renderHeroSym(){const box=$("heroSym");if(!box)return;if(!cur){box.innerHTML="";return;}
   const a=activeSymptoms(cur),p=P();
   box.innerHTML=`<div class="hsym-h"><span>Symptoms now</span><a class="link" id="hsymEdit">${a.length?"Update":"Add"}</a></div>`+(a.length?`<div class="hsym">${a.map(k=>`<span class="hchip lvl-${SYM[k].lvl}">${esc(SYM[k].label)}<button data-x="${k}" aria-label="Clear ${esc(SYM[k].label)}">×</button></span>`).join("")}</div>`:`<div class="hero-sub">None right now</div>`);
@@ -663,6 +668,7 @@ function altPlan(){
     const m=FEVER_MEDS[nextMed];
     const same=sim.filter(x=>x.med===nextMed).sort((a,b)=>b.t-a.t);
     let due=Math.max(lastAny?lastAny.t+altGap(P())*H:0,same[0]?same[0].t+m.minH*H:0);
+    const ov=P().altNext;if(i===0&&ov&&ov.at&&ov.after===(lastAny?new Date(lastAny.t).toISOString():"")){due=Math.max(+new Date(ov.at),same[0]?same[0].t+m.minH*H:0);}
     const win=same.filter(x=>Math.max(now,due)-x.t<DAY);
     if(win.length>=m.max24)due=Math.max(due,win[win.length-1].t+DAY);
     const t=Math.max(now,due);
@@ -691,8 +697,9 @@ function renderMeds(){
       <div class="right"><span class="badge ${s.b}">${s.t}</span><div class="minis">${Array.from({length:m.max24},(_,i)=>`<i class="pip ${i<s.in24.length?"on":""}"></i>`).join("")}</div></div></div>`;}).join("")
     +`<div class="smallnote">${isChild(p)?`Children's liquid. Motrin every 6 to 8 hrs (max 4 a day, with food). Tylenol every 4 to 6 hrs (max 5 a day).`:`Adult tablets. Motrin: ${FEVER_MEDS.ibuprofen.adult.note} Tylenol: ${FEVER_MEDS.acetaminophen.adult.note}`}</div>`;
   const on=!!p.alternate;
-  let alt=`<div class="toggle-row"><div class="grow"><div class="t1">Alternate Tylenol and Motrin</div><div class="t2">${p.altGapH?`Doctor's instructions: switch medicines every ${altGap(p)} hours.`:"A dose every 3 hours, switching medicines. Only do this if your doctor said to."} Each medicine still keeps its own minimum time and daily max.</div></div><label class="switch"><input type="checkbox" id="altT" ${on?"checked":""}><span></span></label></div>`;
-  if(on)alt+=`<div class="toggle-row"><div class="grow"><div class="t1">Switch every</div></div><select id="altGap" class="alt-gap">${[2,3,4].map(h=>`<option value="${h}" ${altGap(p)===h?"selected":""}>${h} hours</option>`).join("")}</select></div>`;
+  let alt=`<div class="toggle-row"><div class="grow"><div class="t1">Alternate Tylenol and Motrin</div><div class="t2">${p.altGapH?`Doctor's instructions: switch medicines every ${gapText(altGap(p))}.`:"A dose every 3 hours, switching medicines. Only do this if your doctor said to."} Each medicine still keeps its own minimum time and daily max.</div></div><label class="switch"><input type="checkbox" id="altT" ${on?"checked":""}><span></span></label></div>`;
+  if(on)alt+=`<div class="toggle-row"><div class="grow"><div class="t1">Time between doses</div><div class="t2">How long after one medicine to give the other</div></div><select id="altGap" class="alt-gap">${GAP_OPTS.concat(GAP_OPTS.includes(altGap(p))?[]:[altGap(p)]).map(h=>`<option value="${h}" ${altGap(p)===h?"selected":""}>${gapText(h)}</option>`).join("")}</select></div>
+    <div class="toggle-row"><div class="grow"><div class="t1">Change the next dose time</div><div class="t2">The rest of the plan moves with it</div></div><button class="badge b-ok" id="altEdit">Change</button></div>`;
   if(on){const lastF=mine().find(e=>e.type==="dose"&&FEVER_MEDS[e.med]&&new Date(e.at)<=Date.now());
     if(lastF){const ld=new Date(lastF.at);alt+=`<div class="smallnote">Built from the last dose logged: ${FEVER_MEDS[lastF.med].name} ${dayLabel(ld)==="Today"?"at":dayLabel(ld)} ${fmtT(ld)}. Log each dose and the times update.</div>`;}
     else alt+=`<div class="smallnote">No Tylenol or Motrin logged yet. Log the first dose and the plan fills in from there.</div>`;
@@ -700,7 +707,9 @@ function renderMeds(){
     return `<div class="plan"><div class="sq" style="background:var(${m.color})">${pillSvg}</div><div class="time">${now?"Now":fmtT(d)}</div><div class="grow"><div class="t1">${m.name}</div><div class="t2">${doseLabel(x.med,p)}${late?" · due since "+fmtT(new Date(x.due)):""}${dayLabel(d)!=="Today"?" · "+dayLabel(d):""}</div></div>${i===0?`<button class="badge b-ok" id="altGive">Log</button>`:""}</div>`;}).join("");}
   $("altplan").innerHTML=alt;
   $("altT").onchange=async e=>{await savePerson(cur,{alternate:e.target.checked});};
-  if($("altGap"))$("altGap").onchange=async e=>{await savePerson(cur,{altGapH:+e.target.value});};
+  if($("altGap"))$("altGap").onchange=async e=>{await savePerson(cur,{altGapH:+e.target.value});toast(`Doses ${gapText(+e.target.value)} apart`);};
+  if($("altEdit"))$("altEdit").onclick=()=>openSheet("altplan",{});
+  $("altplan").querySelectorAll(".plan .time").forEach(t=>{t.style.cursor="pointer";t.onclick=()=>openSheet("altplan",{});});
   const ag=$("altGive");if(ag)ag.onclick=()=>openSheet("dose",{med:altPlan()[0].med});
   const om=meds.filter(m=>m.kid===cur);
   $("othermeds").innerHTML=om.length?om.map(m=>{const s=otherMedStatus(m);return `<div class="row"><div class="sq" style="background:var(--indigo)">${pillSvg}</div>
@@ -778,8 +787,12 @@ function renderLog(){
     let col=ROWIC[e.type]||ROWIC.note;if(e.type==="dose")col=[medInfo(e).color,ROWIC.dose[1]];
     const who=byName(e.by);
     html+=`<div class="row"><div class="sq" style="background:var(${col[0]})"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${col[1]}</svg></div>
-      <div class="grow"><div class="t1">${entryLine(e)}</div><div class="t2">${fmtT(d)}${d>Date.now()?" · planned":""}${who?" · "+esc(who):""}</div></div><button class="del" data-id="${esc(e.id)}">Delete</button></div>`;});
+      <div class="grow"><div class="t1">${entryLine(e)}</div><div class="t2"><span class="etime" data-id="${esc(e.id)}" data-at="${esc(e.at)}">${fmtT(d)} ✎</span>${d>Date.now()?" · planned":""}${who?" · "+esc(who):""}</div></div><button class="del" data-id="${esc(e.id)}">Delete</button></div>`;});
   $("log").innerHTML=html;
+  $("log").querySelectorAll(".etime").forEach(sp=>sp.onclick=()=>{if(!canWrite||sp.querySelector("input"))return;
+    sp.innerHTML=`<input type="datetime-local" value="${localInput(new Date(sp.dataset.at))}">`;const inp=sp.querySelector("input");inp.focus();
+    inp.onchange=async()=>{if(!inp.value)return;try{await db.collection("entries").doc(sp.dataset.id).update({at:new Date(inp.value).toISOString()});toast("Time changed");}catch(e){toast("Couldn't change the time");}};
+    inp.onblur=()=>setTimeout(()=>renderLog(),300);});
   $("log").querySelectorAll(".del").forEach(b=>b.onclick=async()=>{
     if(!b.classList.contains("confirm")){b.classList.add("confirm");b.textContent="Confirm";setTimeout(()=>{b.classList.remove("confirm");b.textContent="Delete";},3000);return;}
     try{await db.collection("entries").doc(b.dataset.id).delete();toast("Deleted");}catch(e){toast("Couldn't delete");}});
@@ -1199,6 +1212,11 @@ function openSheet(mode,opt){
     <div class="bignum" id="vOne"><input id="vVal" type="number" inputmode="decimal" placeholder="--"><span class="u" id="vUnit"></span></div>
     <div class="form">${timeRow()}</div>`;}
   if(mode==="emergency"){title="Medical ID";done="Done";body=emergencyHtml();}
+  if(mode==="altplan"){title="Alternating plan";done="Save";const a=altPlan();const n=a[0];
+    body=`<div class="form" style="margin-top:12px"><div class="f-row"><label>Time between doses</label><select id="apGap">${GAP_OPTS.concat(GAP_OPTS.includes(altGap(p))?[]:[altGap(p)]).map(h=>`<option value="${h}" ${altGap(p)===h?"selected":""}>${gapText(h)}</option>`).join("")}</select></div>
+      <div class="f-row"><label>Next: ${n?FEVER_MEDS[n.med].name:"dose"}</label><input type="datetime-local" id="apAt" value="${localInput(new Date(n?n.t:Date.now()))}"></div></div>
+      <div class="smallnote">Change the gap, or the time of the next dose. Every dose after it follows the gap. Each medicine still waits its own minimum time (Motrin 6 hrs, Tylenol 4 hrs) and daily max. To fix a dose that was already given, tap its time in the History list on the Today tab.</div>
+      ${p.altNext?`<button class="link" id="apReset" style="margin-top:10px">Go back to the automatic times</button>`:""}`;}
   if(mode==="episode"){const ep=ss.ep;title="Illness";done="Save";
     body=`<div class="form" style="margin-top:12px">${txtRow("eName","Name",ep.name,"e.g. Flu, Nov 2026")}</div>
     <div class="stats"><div class="stat"><div class="k">Started</div><div class="v" style="font-size:20px">${ep.start.toLocaleDateString([],{month:"short",day:"numeric"})}</div><div class="s">${fmtT(ep.start)}</div></div>
@@ -1242,6 +1260,7 @@ function wireSheet(mode,p){
     B.querySelectorAll("#vKind .chip").forEach(c=>c.onclick=()=>{ss.vital=c.dataset.vk;ui();});ui();}
   if(mode==="emergency"){$("sCancel").style.visibility="hidden";$("copyEm").onclick=async()=>{try{await navigator.clipboard.writeText(emergencyText());toast("Medical ID copied");}catch(e){toast("Couldn't copy. Take a screenshot instead.");}};}
   else $("sCancel").style.visibility="";
+  if(mode==="altplan"&&$("apReset"))$("apReset").onclick=async()=>{const q=Object.assign({},people[cur]);delete q.altNext;q.updatedAt=new Date().toISOString();await db.collection("kids").doc(cur).set(q);closeSheet();toast("Back to automatic times");};
   if(mode==="episode"){$("eSum").onclick=()=>{sumCustom={from:new Date(+ss.ep.start-6*H),to:ss.ep.active?new Date():new Date(+ss.ep.end+6*H),name:val("eName")||ss.ep.name};closeSheet();setTab("summary");};}
   setTimeout(()=>{const f=$("sTemp")||(mode==="person"&&ss.isNew?$("pName"):null);if(f)f.focus();},350);
 }
@@ -1315,6 +1334,12 @@ $("sDone").onclick=async()=>{
       else{const v=parseFloat(val("vVal"));if(!(v>=0))return fail("Enter a number");e.value=v;}
       await db.collection("entries").add(e);closeSheet();toast(VITALS[ss.vital].label+" saved");}
     else if(mode==="emergency"){closeSheet();}
+    else if(mode==="altplan"){const gap=+$("apGap").value;const lastF=mine().find(e=>e.type==="dose"&&FEVER_MEDS[e.med]&&new Date(e.at)<=Date.now());
+      const before=altPlan()[0];const atv=$("apAt").value?new Date($("apAt").value):null;
+      const fields={altGapH:gap};
+      if(atv&&before&&Math.abs(+atv-before.t)>60e3)fields.altNext={after:lastF?new Date(lastF.at).toISOString():"",at:atv.toISOString()};
+      await savePerson(cur,fields);closeSheet();const after=altPlan()[0];
+      toast(after&&fields.altNext&&after.t-+atv>60e3?`${FEVER_MEDS[after.med].name} can't be given until ${fmtT(new Date(after.t))}`:"Plan updated");}
     else if(mode==="episode"){const name=val("eName");await db.collection("episodes").doc(ss.ep.id).set({kid:cur,name,start:ss.ep.start.toISOString(),updatedAt:new Date().toISOString()});closeSheet();toast("Saved");}
     else if(mode==="import"){const pick=[...$("sBody").querySelectorAll("[data-imp]")].filter(c=>c.checked).map(c=>ss.items[+c.dataset.imp]);let n=0;
       for(const x of pick){const body={kid:cur,kind:REC_KINDS[x.kind]?x.kind:"other",title:String(x.title).slice(0,200),date:/^\d{4}-\d{2}-\d{2}$/.test(x.date||"")?x.date:"",provider:String(x.provider||"").slice(0,200),notes:String(x.notes||"").slice(0,500),updatedAt:new Date().toISOString(),by:me||null,imported:true};

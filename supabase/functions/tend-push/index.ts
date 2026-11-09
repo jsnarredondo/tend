@@ -88,13 +88,15 @@ Deno.serve(async (req) => {
   };
   for (const k of kids) {
     if (!k.alternate) continue;
-    const gap = [2, 3, 4].includes(+k.altGapH) ? +k.altGapH : 3;
+    const gap = +k.altGapH >= 1 && +k.altGapH <= 12 ? +k.altGapH : 3;
     const doses = entries.filter((e: any) => e.kid === k.id && e.type === "dose" && FEVER[e.med] && Date.parse(e.at) <= now)
       .map((e: any) => ({ med: e.med, t: Date.parse(e.at) })).sort((a: any, b: any) => b.t - a.t);
     if (!doses.length || now - doses[0].t > 12 * H) continue; // not in an active fever stretch
     const nextMed = doses[0].med === "ibuprofen" ? "acetaminophen" : "ibuprofen", m = FEVER[nextMed];
     const same = doses.filter((d: any) => d.med === nextMed);
     let due = Math.max(doses[0].t + gap * H, same[0] ? same[0].t + m.minH * H : 0);
+    const ov = k.altNext; // a time the parent picked for this next dose
+    if (ov?.at && ov.after === new Date(doses[0].t).toISOString()) due = Math.max(Date.parse(ov.at), same[0] ? same[0].t + m.minH * H : 0);
     const win = same.filter((d: any) => Math.max(now, due) - d.t < 24 * H);
     if (win.length >= m.max24) due = Math.max(due, win[win.length - 1].t + 24 * H);
     if (!(due <= now && now - due < WINDOW)) continue;
