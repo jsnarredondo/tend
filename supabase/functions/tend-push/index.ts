@@ -39,6 +39,15 @@ function parseTime(t: string) {
 Deno.serve(async (req) => {
   const s = await secrets();
   if (!s.CRON_SECRET || req.headers.get("x-cron-secret") !== s.CRON_SECRET) return new Response("forbidden", { status: 403 });
+  if (new URL(req.url).searchParams.get("check") === "ai") {
+    // health check: is the Anthropic key working? (returns status only, never the key)
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-haiku-5-5", max_tokens: 5, messages: [{ role: "user", content: "Say ok" }] }),
+    });
+    return new Response(JSON.stringify({ status: r.status, body: (await r.text()).slice(0, 300) }));
+  }
   webpush.setVapidDetails("mailto:jason@texassecurelife.com", s.VAPID_PUBLIC, s.VAPID_PRIVATE);
 
   const { data: subs } = await admin.from("push_subs").select("endpoint,sub,tz");
