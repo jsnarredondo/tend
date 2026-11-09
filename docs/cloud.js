@@ -127,3 +127,26 @@ const sample={
 window.claude={use:async cap=>{await ready;
   if(cap==="db")return db;if(cap==="user")return user;if(cap==="sample")return sample;return null;}};
 })();
+
+/* ---------- phone notifications (web push) ---------- */
+(function(){
+const VAPID="BIjleQ40m-WrEW-656qLaSFLultgye7wOdXD5CAFb_0KnmPAfQWngAPcUEVo8Xlxw3KA5MhIXNjIVhUqn1l9AJY";
+const b64=s=>{s=s.replace(/-/g,"+").replace(/_/g,"/");s+="=".repeat((4-s.length%4)%4);return Uint8Array.from(atob(s),c=>c.charCodeAt(0));};
+let reg=null;
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").then(r=>reg=r).catch(()=>{});
+const sb=window.tendSB;
+window.tendPush={
+  supported:()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window,
+  standalone:()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone===true,
+  state:async()=>{if(!window.tendPush.supported())return"unsupported";if(Notification.permission==="denied")return"denied";
+    const r=reg||await navigator.serviceWorker.ready;const s=await r.pushManager.getSubscription();return s?"on":"off";},
+  async enable(){
+    const perm=await Notification.requestPermission();if(perm!=="granted")throw new Error("Notifications were not allowed");
+    const r=reg||await navigator.serviceWorker.ready;
+    const s=(await r.pushManager.getSubscription())||await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:b64(VAPID)});
+    const j=s.toJSON();const {error}=await sb.from("push_subs").upsert({endpoint:j.endpoint,sub:j,tz:Intl.DateTimeFormat().resolvedOptions().timeZone});
+    if(error)throw error;return true;},
+  async disable(){const r=reg||await navigator.serviceWorker.ready;const s=await r.pushManager.getSubscription();
+    if(s){await sb.from("push_subs").delete().eq("endpoint",s.endpoint);await s.unsubscribe();}}
+};
+})();

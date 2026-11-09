@@ -45,6 +45,7 @@ sub('Tend needs permission to use Claude to read photos.', 'Photo reading isn\'t
 OUT.mkdir(exist_ok=True)
 (OUT / "index.html").write_text(html)
 shutil.copy(HERE / "src/cloud.js", OUT / "cloud.js")
+shutil.copy(HERE / "src/sw.js", OUT / "sw.js")
 shutil.copy(HERE / "src/supabase.min.js", OUT / "supabase.min.js")
 icons = pathlib.Path("/mnt/project-files/tend-logos/final")
 for f in ["apple-touch-icon.png", "favicon-32.png", "tend-icon-192.png", "tend-icon-512.png", "tend-icon.svg"]:
