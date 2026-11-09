@@ -14,11 +14,16 @@ function showLogin(msg){
   let el=$("login");
   if(!el){el=document.createElement("div");el.id="login";document.body.appendChild(el);
     el.innerHTML=`<div class="lg-card"><div class="lg-logo"></div><h1>Tend</h1><p class="lg-sub">Sign in to see the family's log.</p>
+      <button type="button" id="lgGoogle" class="lg-google"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Continue with Google</button>
+      <div class="lg-or">or</div>
       <form id="lgForm"><input id="lgEmail" type="email" autocomplete="username" placeholder="Email" required>
       <input id="lgPass" type="password" autocomplete="current-password" placeholder="Password" required>
       <button type="submit" id="lgGo">Sign in</button><div id="lgMsg" class="lg-msg"></div></form>
       <p class="lg-foot">Ask whoever set up Tend for an invite.</p></div>`;
     const icon=document.querySelector('link[rel="apple-touch-icon"]');if(icon)el.querySelector(".lg-logo").style.backgroundImage=`url("${icon.href}")`;
+    $("lgGoogle").onclick=async()=>{$("lgMsg").textContent="";
+      const {error}=await sb.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname,queryParams:{prompt:"select_account"}}});
+      if(error)$("lgMsg").textContent=/not enabled|provider/i.test(error.message)?"Google sign-in isn't turned on yet. Use your email and password.":"Couldn't open Google sign-in.";};
     $("lgForm").onsubmit=async e=>{e.preventDefault();$("lgGo").disabled=true;$("lgMsg").textContent="Signing in…";
       const {error}=await sb.auth.signInWithPassword({email:$("lgEmail").value.trim(),password:$("lgPass").value});
       $("lgGo").disabled=false;if(error)$("lgMsg").textContent="That email and password didn't match.";};}
@@ -28,8 +33,9 @@ function hideLogin(){const el=$("login");if(el)el.style.display="none";}
 async function onSession(s){
   session=s;
   if(!s){showLogin();return;}
-  const {data,error}=await sb.from("members").select("*").eq("user_id",s.user.id).maybeSingle();
-  if(error||!data){await sb.auth.signOut();showLogin("This account isn't on the care team yet.");return;}
+  let {data,error}=await sb.from("members").select("*").eq("user_id",s.user.id).maybeSingle();
+  if(!error&&!data){const c=await sb.rpc("claim_my_invite");if(c.data===true)({data,error}=await sb.from("members").select("*").eq("user_id",s.user.id).maybeSingle());}
+  if(error||!data){await sb.auth.signOut();showLogin("That account isn't on the care team. Ask the owner to invite this email.");return;}
   member=data;hideLogin();readyRes();
 }
 let started=false;
@@ -91,7 +97,7 @@ const user={
   async profiles(ids){const ms=await allMembers();const out={};
     ids.forEach(id=>{const m=ms.find(x=>x.user_id===id||(x.legacy_ids||[]).includes(id));out[id]={name:m?m.name:""};});return out;},
   members:allMembers,
-  async invite(name,email,role){return fn({action:"invite",name,email,role}).then(r=>{profilesCache=null;return r;});},
+  async invite(name,email,role){await sb.from("invites").upsert({email:String(email).trim().toLowerCase(),name,role});return fn({action:"invite",name,email,role}).then(r=>{profilesCache=null;return r;});},
   async remove(uid){return fn({action:"remove",user_id:uid}).then(r=>{profilesCache=null;return r;});},
   async changePassword(pw){const {error}=await sb.auth.updateUser({password:pw});if(error)throw error;},
   signOut:()=>sb.auth.signOut()

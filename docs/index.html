@@ -307,6 +307,9 @@ input,select,textarea{font-size:16px!important}
 #login button:disabled{opacity:.6}
 #login .lg-msg{min-height:20px;margin-top:10px;font-size:14px;color:#c0394b}
 #login .lg-foot{margin:14px 0 0;font-size:13px;opacity:.55}
+#login .lg-google{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#3A1E24;border:1px solid #e3dfe6}
+@media (prefers-color-scheme:dark){#login .lg-google{background:#2c2c2e;color:#fff;border-color:#3a3a3c}}
+#login .lg-or{margin:12px 0;font-size:13px;opacity:.5}
 
 </style>
 </head>
@@ -905,7 +908,7 @@ function renderTeam(){
     const add=$("tmAdd");if(add)add.onclick=async()=>{add.disabled=true;
       try{const r=await user.invite(val("tmName"),val("tmEmail"),$("tmRole").value);
         const link=location.origin+location.pathname;
-        const msg=`I set you up on Tend so we can both track the kids' meds and symptoms.\n\n1. Open ${link}\n2. Sign in with ${r.email}\n3. Password: ${r.password}\n\nOn iPhone, tap Share then "Add to Home Screen" so it works like an app.`;
+        const msg=`I set you up on Tend so we can both track the kids' meds and symptoms.\n\n1. Open ${link}\n2. Tap Continue with Google and pick ${r.email}\n   (or sign in with that email and the password ${r.password})\n\nOn iPhone, tap Share then "Add to Home Screen" so it works like an app.`;
         $("tmOut").innerHTML=`<div class="hint" style="margin-top:10px;white-space:pre-wrap;user-select:text">${esc(msg)}</div><button class="pbtn" id="tmCopy" style="margin-top:8px;width:100%">Copy invite message</button>`;
         $("tmCopy").onclick=async()=>{try{await navigator.clipboard.writeText(msg);toast("Copied. Text it to them.");}catch(e){toast("Select the text and copy it");}};
       }catch(e){toast(e.message||"Couldn't invite");}add.disabled=false;};

@@ -9,3 +9,6 @@
 #login button:disabled{opacity:.6}
 #login .lg-msg{min-height:20px;margin-top:10px;font-size:14px;color:#c0394b}
 #login .lg-foot{margin:14px 0 0;font-size:13px;opacity:.55}
+#login .lg-google{display:flex;align-items:center;justify-content:center;gap:10px;background:#fff;color:#3A1E24;border:1px solid #e3dfe6}
+@media (prefers-color-scheme:dark){#login .lg-google{background:#2c2c2e;color:#fff;border-color:#3a3a3c}}
+#login .lg-or{margin:12px 0;font-size:13px;opacity:.5}
