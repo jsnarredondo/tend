@@ -15,7 +15,7 @@ def sub(old, new, count=1):
     html = html.replace(old, new) if count == 0 else html.replace(old, new, count)
 
 # head: manifest, relative icons, noindex, cloud scripts
-sub('<title>Tend</title>', '<title>Tend</title>\n<meta name="robots" content="noindex, nofollow">\n<link rel="manifest" href="manifest.webmanifest">')
+sub('<title>Tend</title>', '<title>Tend</title>\n<meta name="robots" content="noindex, nofollow">\n<meta property="og:title" content="Tend">\n<meta property="og:site_name" content="Tend">\n<meta property="og:type" content="website">\n<meta property="og:url" content="https://tend.llc/">\n<meta property="og:image" content="https://tend.llc/tend-icon-512.png">\n<meta property="og:image:width" content="512">\n<meta property="og:image:height" content="512">\n<meta name="twitter:card" content="summary">\n<meta name="twitter:title" content="Tend">\n<meta name="twitter:image" content="https://tend.llc/tend-icon-512.png">\n<link rel="manifest" href="manifest.webmanifest">')
 html = re.sub(r'<link rel="icon" href="data:[^"]*">', '<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">', html)
 html = re.sub(r'<link rel="apple-touch-icon" href="data:[^"]*">', '<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">', html)
 sub('</style>', (HERE / "src/cloud.css").read_text() + "\n</style>")

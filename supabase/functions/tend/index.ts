@@ -45,7 +45,8 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: "bad_request" }, 400); }
 
   if (body.action === "ai") {
-    const key = Deno.env.get("ANTHROPIC_API_KEY");
+    let key = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!key) key = (await admin.from("app_secrets").select("value").eq("name", "ANTHROPIC_API_KEY").maybeSingle()).data?.value;
     if (!key) return json({ error: "no_key", message: "Tell Tend isn't set up yet." }, 503);
     const n = (await admin.rpc("ai_bump", { p_user: u.user.id, p_limit: DAILY_AI_LIMIT })).data ?? 0;
     if (n > DAILY_AI_LIMIT) return json({ error: "limit", message: "Tend's daily AI limit was reached. Try again tomorrow." }, 429);
