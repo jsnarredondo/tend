@@ -51,4 +51,5 @@ for f in ["apple-touch-icon.png", "favicon-32.png", "tend-icon-192.png", "tend-i
     if (icons / f).exists(): shutil.copy(icons / f, OUT / f)
 (OUT / "manifest.webmanifest").write_text('{"name":"Tend","short_name":"Tend","start_url":"./","scope":"./","display":"standalone","background_color":"#eef3ff","theme_color":"#F0566A","icons":[{"src":"tend-icon-192.png","sizes":"192x192","type":"image/png"},{"src":"tend-icon-512.png","sizes":"512x512","type":"image/png"}]}')
 (OUT / ".nojekyll").write_text("")
+(OUT / "CNAME").write_text("tend.llc\n")
 print("built", OUT / "index.html", len(html))
